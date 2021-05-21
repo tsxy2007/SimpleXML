@@ -40,8 +40,9 @@ public class SimpleXML : ModuleRules
 				"SlateCore",
 				// ... add private dependencies that you statically link with here ...	
 				"JsonUtilities",
-        "Json",
-            }
+				"Json",
+				"XmlParser",
+			}
 			);
 		
 		

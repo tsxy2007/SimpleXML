@@ -17,7 +17,7 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUStructToJsonObjectString)
 	void* StructPtr = Stack.MostRecentPropertyAddress;
 
 	//Get JsonString reference
-	P_GET_PROPERTY_REF(UStrProperty, JSONString);
+	P_GET_PROPERTY_REF(FStrProperty, JSONString);
 	P_FINISH;
 
 	P_NATIVE_BEGIN;
