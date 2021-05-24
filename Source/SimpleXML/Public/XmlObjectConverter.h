@@ -16,5 +16,5 @@ public:
 
 
 public:
-	static TSharedPtr<FXmlNode> UPropertyToXMLNode(FProperty* Property, const void* Value);
+	static bool UPropertyToXMLString(const UStruct* StructDefinition, const void* Struct, FString& JSONString,int64 CheckFlags, int64 SkipFlags);
 };

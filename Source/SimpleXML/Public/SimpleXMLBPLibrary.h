@@ -61,7 +61,4 @@ class USimpleXMLBPLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure,CustomThunk, meta = (CustomStructureParam = "StructReference", DisplayName = "Struct to XML String"), Category = "File|XML")
 	static void UStructToXMLObjectString(const int32& StructReference, FString& XMLString);
 	DECLARE_FUNCTION(execUStructToXMLObjectString);
-
-	UFUNCTION()
-	void Test(const FTestData& Data,FString& XMLString);
 };
