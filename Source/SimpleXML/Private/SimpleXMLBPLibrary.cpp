@@ -42,7 +42,7 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUStructToXMLObjectString)
 	P_NATIVE_BEGIN;
 	FString Results;
 
-	XmlObjectConverter::UPropertyToXMLString(LocalProperty->Struct, StructPtr, JSONString, 0, 0);
+	FXmlObjectConverter::UStructToXMLString(LocalProperty->Struct, StructPtr, JSONString, 0, 0);
 	int32 i = 0;
 	P_NATIVE_END;
 	

@@ -5,16 +5,23 @@
 #include "CoreMinimal.h"
 
 class FXmlNode;
+namespace tinyxml2
+{
+	class XMLNode;
+};
 /**
  * 
  */
-class SIMPLEXML_API XmlObjectConverter
+class SIMPLEXML_API FXmlObjectConverter
 {
 public:
-	XmlObjectConverter();
-	~XmlObjectConverter();
+	FXmlObjectConverter();
+	~FXmlObjectConverter();
 
 
 public:
-	static bool UPropertyToXMLString(const UStruct* StructDefinition, const void* Struct, FString& JSONString,int64 CheckFlags, int64 SkipFlags);
+	static bool UStructToXMLString(const UStruct* StructDefinition, const void* Struct, FString& JSONString,int64 CheckFlags, int64 SkipFlags);
+	static bool UStructToXML(const UStruct* StructDefinition, const void* Struct, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags);
+	static bool UPropertyToXMLNode(FProperty* Property,const void* Struct, tinyxml2::XMLNode* XmlNode, int64 CheckFlags, int64 SkipFlags);
+
 };

@@ -2,24 +2,32 @@
 
 
 #include "XmlObjectConverter.h"
+#include "tinyxml2.h"
 
-XmlObjectConverter::XmlObjectConverter()
+FXmlObjectConverter::FXmlObjectConverter()
 {
 }
 
-XmlObjectConverter::~XmlObjectConverter()
+FXmlObjectConverter::~FXmlObjectConverter()
 {
 }
 
-bool XmlObjectConverter::UPropertyToXMLString(const UStruct* StructDefinition, const void* Struct, FString& OutJsonString, int64 CheckFlags, int64 SkipFlags)
+bool FXmlObjectConverter::UStructToXMLString(const UStruct* StructDefinition, const void* Struct, FString& OutJsonString, int64 CheckFlags, int64 SkipFlags)
 {
 	bool bResult = false;
-	const FString _XmlContent = "<DocumentElement>\n</DocumentElement>";
+	tinyxml2::XMLDocument doc;
 
-	FXmlFile XmlFile = { _XmlContent,EConstructMethod::ConstructFromBuffer };
+	tinyxml2::XMLNode* BaseNode = doc.NewElement("Data");
+	doc.InsertEndChild(BaseNode);
 
-	FXmlNode* RootNode = XmlFile.GetRootNode();
+	FXmlObjectConverter::UStructToXML(StructDefinition, Struct, BaseNode,CheckFlags, SkipFlags);
+	FString XmlPath = FPaths::GameDevelopersDir() + TEXT("1.xml");
+	doc.SaveFile(TCHAR_TO_ANSI(*XmlPath));
+	return bResult;
+}
 
+bool FXmlObjectConverter::UStructToXML(const UStruct* StructDefinition, const void* Struct, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags)
+{
 	for (TFieldIterator<FProperty> PropIt(StructDefinition); PropIt; ++PropIt)
 	{
 		FProperty* Property = *PropIt;
@@ -31,167 +39,143 @@ bool XmlObjectConverter::UPropertyToXMLString(const UStruct* StructDefinition, c
 		{
 			continue;
 		}
-		FString VariName = Property->GetName();
-		const void* Value = Property->ContainerPtrToValuePtr<uint8>(Struct);
-		FString StringValue = "";
-		if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+
+		FXmlObjectConverter::UPropertyToXMLNode(Property, Struct, RootNode, CheckFlags, SkipFlags);
+	}
+	return true;
+}
+
+bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Struct, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags)
+{
+	FString VariName = Property->GetName();
+	const void* Value = Property->ContainerPtrToValuePtr<uint8>(Struct);
+	FString StringValue = "";
+	bool bIsContainer = false;
+	if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		// export enums as strings
+		UEnum* EnumDef = EnumProperty->GetEnum();
+		StringValue = EnumDef->GetNameStringByValue(EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(Value));
+	}
+	else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property))
+	{
+		// see if it's an enum
+		UEnum* EnumDef = NumericProperty->GetIntPropertyEnum();
+		if (EnumDef != NULL)
 		{
 			// export enums as strings
-			UEnum* EnumDef = EnumProperty->GetEnum();
-			StringValue = EnumDef->GetNameStringByValue(EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(Value));
+			StringValue = EnumDef->GetNameStringByValue(NumericProperty->GetSignedIntPropertyValue(Value));
 		}
-		else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property))
+
+		// We want to export numbers as numbers
+		if (NumericProperty->IsFloatingPoint())
 		{
-			// see if it's an enum
-			UEnum* EnumDef = NumericProperty->GetIntPropertyEnum();
-			if (EnumDef != NULL)
+			StringValue = FString::FormatAsNumber(NumericProperty->GetFloatingPointPropertyValue(Value));
+		}
+		else if (NumericProperty->IsInteger())
+		{
+			StringValue = FString::FormatAsNumber(NumericProperty->GetSignedIntPropertyValue(Value));
+		}
+
+		// fall through to default
+	}
+	else if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+	{
+		// Export bools as bools
+		StringValue = FString::FormatAsNumber(BoolProperty->GetPropertyValue(Value));
+	}
+	else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
+	{
+		StringValue = StringProperty->GetPropertyValue(Value);
+	}
+	else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+	{
+		StringValue = TextProperty->GetPropertyValue(Value).ToString();
+	}
+	else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+	{
+		FScriptArrayHelper Helper(ArrayProperty, Value);
+		
+		FString Tag = VariName + TEXT("_es");
+		tinyxml2::XMLNode* ArrayXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
+		RootNode->InsertEndChild(ArrayXMLNode);
+		for (int32 i = 0, n = Helper.Num(); i < n; ++i)
+		{
+			FXmlObjectConverter::UPropertyToXMLNode(ArrayProperty->Inner, Helper.GetRawPtr(i), ArrayXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
+		}
+		bIsContainer = true;
+	}
+	else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+	{
+		FString Tag = VariName + TEXT("_set");
+		tinyxml2::XMLNode* ArrayXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
+		RootNode->InsertEndChild(ArrayXMLNode);
+		FScriptSetHelper Helper(SetProperty, Value);
+		for (int32 i = 0, n = Helper.Num(); n; ++i)
+		{
+			if (Helper.IsValidIndex(i))
 			{
-				// export enums as strings
-				StringValue = EnumDef->GetNameStringByValue(NumericProperty->GetSignedIntPropertyValue(Value));
+				FXmlObjectConverter::UPropertyToXMLNode(SetProperty->ElementProp, Helper.GetElementPtr(i), ArrayXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
+				--n;
 			}
+		}
+		bIsContainer = true;
+	}
+	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+	{
+		
+		FString Tag = VariName + TEXT("_map");
+		tinyxml2::XMLNode* MapXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
+		RootNode->InsertEndChild(MapXMLNode);
 
-			// We want to export numbers as numbers
-			if (NumericProperty->IsFloatingPoint())
+		FScriptMapHelper Helper(MapProperty, Value);
+		for (int32 i = 0, n = Helper.Num(); n; ++i)
+		{
+			if (Helper.IsValidIndex(i))
 			{
-				StringValue = FString::FormatAsNumber(NumericProperty->GetFloatingPointPropertyValue(Value));
+				FXmlObjectConverter::UPropertyToXMLNode(MapProperty->KeyProp, Helper.GetKeyPtr(i), MapXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
+				FXmlObjectConverter::UPropertyToXMLNode(MapProperty->ValueProp, Helper.GetValuePtr(i), MapXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
+				--n;
 			}
-			else if (NumericProperty->IsInteger())
-			{
-				StringValue = FString::FormatAsNumber(NumericProperty->GetSignedIntPropertyValue(Value));
-			}
-
-			// fall through to default
 		}
-		else if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+		bIsContainer = true;
+	}
+	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		UScriptStruct::ICppStructOps* TheCppStructOps = StructProperty->Struct->GetCppStructOps();
+		FString Tag = VariName;
+		tinyxml2::XMLNode* StructElement = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+		RootNode->InsertEndChild(StructElement);
+		FXmlObjectConverter::UStructToXML(StructProperty->Struct, Value, StructElement, CheckFlags& (~CPF_ParmFlags), SkipFlags);
+		bIsContainer = true;
+	}
+	else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+	{
+		// Instanced properties should be copied by value, while normal UObject* properties should output as asset references
+		UObject* Object = ObjectProperty->GetObjectPropertyValue(Value);
+		if (Object && (ObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance) /*|| (OuterProperty && OuterProperty->HasAnyPropertyFlags(CPF_PersistentInstance))*/))
 		{
-			// Export bools as bools
-			StringValue = FString::FormatAsNumber(BoolProperty->GetPropertyValue(Value));
-		}
-		else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
-		{
-			StringValue = StringProperty->GetPropertyValue(Value);
-		}
-		else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
-		{
-			StringValue = TextProperty->GetPropertyValue(Value).ToString();
-		}
-		else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
-		{
-			//TArray< TSharedPtr<FJsonValue> > Out;
-			//FScriptArrayHelper Helper(ArrayProperty, Value);
-			//for (int32 i = 0, n = Helper.Num(); i < n; ++i)
-			//{
-			//	TSharedPtr<FJsonValue> Elem = FJsonObjectConverter::UPropertyToJsonValue(ArrayProperty->Inner, Helper.GetRawPtr(i), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, ArrayProperty);
-			//	if (Elem.IsValid())
-			//	{
-			//		// add to the array
-			//		Out.Push(Elem);
-			//	}
-			//}
-		}
-		else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
-		{
-			//TArray< TSharedPtr<FJsonValue> > Out;
-			//FScriptSetHelper Helper(SetProperty, Value);
-			//for (int32 i = 0, n = Helper.Num(); n; ++i)
-			//{
-			//	if (Helper.IsValidIndex(i))
-			//	{
-			//		TSharedPtr<FJsonValue> Elem = FJsonObjectConverter::UPropertyToJsonValue(SetProperty->ElementProp, Helper.GetElementPtr(i), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, SetProperty);
-			//		if (Elem.IsValid())
-			//		{
-			//			// add to the array
-			//			Out.Push(Elem);
-			//		}
-
-			//		--n;
-			//	}
-			//}
-			//return MakeShared<FJsonValueArray>(Out);
-		}
-		else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
-		{
-			/*TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
-
-			FScriptMapHelper Helper(MapProperty, Value);
-			for (int32 i = 0, n = Helper.Num(); n; ++i)
-			{
-				if (Helper.IsValidIndex(i))
-				{
-					TSharedPtr<FJsonValue> KeyElement = FJsonObjectConverter::UPropertyToJsonValue(MapProperty->KeyProp, Helper.GetKeyPtr(i), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, MapProperty);
-					TSharedPtr<FJsonValue> ValueElement = FJsonObjectConverter::UPropertyToJsonValue(MapProperty->ValueProp, Helper.GetValuePtr(i), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, MapProperty);
-					if (KeyElement.IsValid() && ValueElement.IsValid())
-					{
-						FString KeyString;
-						if (!KeyElement->TryGetString(KeyString))
-						{
-							MapProperty->KeyProp->ExportTextItem(KeyString, Helper.GetKeyPtr(i), nullptr, nullptr, 0);
-							if (KeyString.IsEmpty())
-							{
-								UE_LOG(LogJson, Error, TEXT("Unable to convert key to string for property %s."), *MapProperty->GetName())
-									KeyString = FString::Printf(TEXT("Unparsed Key %d"), i);
-							}
-						}
-
-						Out->SetField(KeyString, ValueElement);
-					}
-
-					--n;
-				}
-			}
-
-			return MakeShared<FJsonValueObject>(Out);*/
-		}
-		else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-		{
-			//UScriptStruct::ICppStructOps* TheCppStructOps = StructProperty->Struct->GetCppStructOps();
-			//// Intentionally exclude the JSON Object wrapper, which specifically needs to export JSON in an object representation instead of a string
-			//if (StructProperty->Struct != FJsonObjectWrapper::StaticStruct() && TheCppStructOps && TheCppStructOps->HasExportTextItem())
-			//{
-			//	FString OutValueStr;
-			//	TheCppStructOps->ExportTextItem(OutValueStr, Value, nullptr, nullptr, PPF_None, nullptr);
-			//	OutValueStr);
-			//}
-
-			//TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
-			//if (FJsonObjectConverter::UStructToJsonObject(StructProperty->Struct, Value, Out, CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb))
-			//{
-			//	return MakeShared<FJsonValueObject>(Out);
-			//}
-		}
-		else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-		{
-			// Instanced properties should be copied by value, while normal UObject* properties should output as asset references
-			/*UObject* Object = ObjectProperty->GetObjectPropertyValue(Value);
-			if (Object && (ObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance) || (OuterProperty && OuterProperty->HasAnyPropertyFlags(CPF_PersistentInstance))))
-			{
-				TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
-
-				Out->SetStringField(ObjectClassNameKey, Object->GetClass()->GetFName().ToString());
-				if (FJsonObjectConverter::UStructToJsonObject(ObjectProperty->GetObjectPropertyValue(Value)->GetClass(), Object, Out, CheckFlags, SkipFlags, ExportCb))
-				{
-					TSharedRef<FJsonValueObject> JsonObject = MakeShared<FJsonValueObject>(Out);
-					JsonObject->Type = EJson::Object;
-					return JsonObject;
-				}
-			}
-			else
-			{
-				FString StringValue;
-				Property->ExportTextItem(StringValue, Value, nullptr, nullptr, PPF_None);
-				StringValue;
-			}*/
+			tinyxml2::XMLNode* ClassElement = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+			RootNode->InsertEndChild(ClassElement);
+			FXmlObjectConverter::UStructToXML(ObjectProperty->GetObjectPropertyValue(Value)->GetClass(), Object, ClassElement, CheckFlags, SkipFlags);
+			bIsContainer = true;
 		}
 		else
 		{
-			// Default to export as string for everything else
-			Property->ExportTextItem(StringValue, Value, NULL, NULL, PPF_None);
+			Property->ExportTextItem(StringValue, Value, nullptr, nullptr, PPF_None);
 		}
-
-		RootNode->AppendChildNode(VariName, StringValue);
-
 	}
-	FString XmlPath = FPaths::GameSourceDir() + TEXT("1.xml");
-	XmlFile.Save(XmlPath);
-	return bResult;
+	else
+	{
+		// Default to export as string for everything else
+		Property->ExportTextItem(StringValue, Value, NULL, NULL, PPF_None);
+	}
+	if (bIsContainer == false)
+	{
+		//RootNode->AppendChildNode(VariName, StringValue);
+		tinyxml2::XMLNode* PropertyNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+		RootNode->InsertEndChild(PropertyNode);
+		PropertyNode->ToElement()->SetAttribute("Value",TCHAR_TO_ANSI(*StringValue));
+	}
+	return true;
 }
