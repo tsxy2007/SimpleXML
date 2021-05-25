@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Modules/ModuleManager.h"
-
+DECLARE_LOG_CATEGORY_EXTERN(LogSimpleXML, Log, All);
 class FSimpleXMLModule : public IModuleInterface
 {
 public:

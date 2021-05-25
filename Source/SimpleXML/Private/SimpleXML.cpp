@@ -3,7 +3,7 @@
 #include "SimpleXML.h"
 
 #define LOCTEXT_NAMESPACE "FSimpleXMLModule"
-
+DEFINE_LOG_CATEGORY(LogSimpleXML);
 void FSimpleXMLModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module

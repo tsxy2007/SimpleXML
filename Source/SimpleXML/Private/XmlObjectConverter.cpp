@@ -3,6 +3,7 @@
 
 #include "XmlObjectConverter.h"
 #include "tinyxml2.h"
+#include "SimpleXML.h"
 
 FXmlObjectConverter::FXmlObjectConverter()
 {
@@ -70,13 +71,12 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* St
 		// We want to export numbers as numbers
 		if (NumericProperty->IsFloatingPoint())
 		{
-			StringValue = FString::FormatAsNumber(NumericProperty->GetFloatingPointPropertyValue(Value));
+			StringValue = FString::SanitizeFloat(NumericProperty->GetFloatingPointPropertyValue(Value));
 		}
 		else if (NumericProperty->IsInteger())
 		{
 			StringValue = FString::FormatAsNumber(NumericProperty->GetSignedIntPropertyValue(Value));
 		}
-
 		// fall through to default
 	}
 	else if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
@@ -133,8 +133,13 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* St
 		{
 			if (Helper.IsValidIndex(i))
 			{
-				FXmlObjectConverter::UPropertyToXMLNode(MapProperty->KeyProp, Helper.GetKeyPtr(i), MapXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
-				FXmlObjectConverter::UPropertyToXMLNode(MapProperty->ValueProp, Helper.GetValuePtr(i), MapXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
+				FString DataTag = VariName + TEXT("_mapData");
+				tinyxml2::XMLElement* MapXMLItemNode = MapXMLNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+				MapXMLNode->InsertEndChild(MapXMLItemNode);
+				FString KeyString;
+				MapProperty->KeyProp->ExportTextItem(KeyString, Helper.GetKeyPtr(i), nullptr, nullptr, 0);
+				MapXMLItemNode->SetAttribute("Key",TCHAR_TO_ANSI(*KeyString));
+				FXmlObjectConverter::UPropertyToXMLNode(MapProperty->ValueProp, Helper.GetValuePtr(i), MapXMLItemNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
 				--n;
 			}
 		}
@@ -173,9 +178,11 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* St
 	if (bIsContainer == false)
 	{
 		//RootNode->AppendChildNode(VariName, StringValue);
-		tinyxml2::XMLNode* PropertyNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+		tinyxml2::XMLElement* PropertyNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
 		RootNode->InsertEndChild(PropertyNode);
-		PropertyNode->ToElement()->SetAttribute("Value",TCHAR_TO_ANSI(*StringValue));
+		PropertyNode->SetAttribute("Value", TCHAR_TO_ANSI(*StringValue));
+		UE_LOG(LogSimpleXML, Warning, TEXT("XML Key [%s] Value[%s]")
+			, *VariName, *StringValue);
 	}
 	return true;
 }
