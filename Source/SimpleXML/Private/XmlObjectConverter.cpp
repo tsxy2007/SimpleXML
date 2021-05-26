@@ -5,14 +5,6 @@
 #include "tinyxml2.h"
 #include "SimpleXML.h"
 
-FXmlObjectConverter::FXmlObjectConverter()
-{
-}
-
-FXmlObjectConverter::~FXmlObjectConverter()
-{
-}
-
 bool FXmlObjectConverter::UStructToXMLString(const UStruct* StructDefinition, const void* Struct, FString& OutJsonString, int64 CheckFlags, int64 SkipFlags)
 {
 	bool bResult = false;
@@ -22,13 +14,19 @@ bool FXmlObjectConverter::UStructToXMLString(const UStruct* StructDefinition, co
 	doc.InsertEndChild(BaseNode);
 
 	FXmlObjectConverter::UStructToXML(StructDefinition, Struct, BaseNode,CheckFlags, SkipFlags);
-	FString XmlPath = FPaths::GameDevelopersDir() + TEXT("1.xml");
-	doc.SaveFile(TCHAR_TO_ANSI(*XmlPath));
+	tinyxml2::XMLPrinter printer;
+	doc.Print(&printer);//将Print打印到Xmlprint类中 即保存在内存中
+	OutJsonString = FString(printer.CStr());
 	return bResult;
 }
 
 bool FXmlObjectConverter::UStructToXML(const UStruct* StructDefinition, const void* Struct, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags)
 {
+	if (SkipFlags == 0)
+	{
+		// If we have no specified skip flags, skip deprecated, transient and skip serialization by default when writing
+		SkipFlags |= CPF_Deprecated | CPF_Transient;
+	}
 	for (TFieldIterator<FProperty> PropIt(StructDefinition); PropIt; ++PropIt)
 	{
 		FProperty* Property = *PropIt;
@@ -40,16 +38,16 @@ bool FXmlObjectConverter::UStructToXML(const UStruct* StructDefinition, const vo
 		{
 			continue;
 		}
-
-		FXmlObjectConverter::UPropertyToXMLNode(Property, Struct, RootNode, CheckFlags, SkipFlags);
+		const void* Value = Property->ContainerPtrToValuePtr<uint8>(Struct);
+		FXmlObjectConverter::UPropertyToXMLNode(Property, Value, RootNode, CheckFlags, SkipFlags);
 	}
 	return true;
 }
 
-bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Struct, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags)
+bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Value, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags)
 {
 	FString VariName = Property->GetName();
-	const void* Value = Property->ContainerPtrToValuePtr<uint8>(Struct);
+
 	FString StringValue = "";
 	bool bIsContainer = false;
 	if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
@@ -123,7 +121,6 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* St
 	}
 	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 	{
-		
 		FString Tag = VariName + TEXT("_map");
 		tinyxml2::XMLNode* MapXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
 		RootNode->InsertEndChild(MapXMLNode);
@@ -151,6 +148,8 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* St
 		FString Tag = VariName;
 		tinyxml2::XMLNode* StructElement = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
 		RootNode->InsertEndChild(StructElement);
+		FString DataStringi;
+		Property->ExportTextItem(DataStringi, Value, nullptr, nullptr, 0);
 		FXmlObjectConverter::UStructToXML(StructProperty->Struct, Value, StructElement, CheckFlags& (~CPF_ParmFlags), SkipFlags);
 		bIsContainer = true;
 	}
@@ -181,8 +180,7 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* St
 		tinyxml2::XMLElement* PropertyNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
 		RootNode->InsertEndChild(PropertyNode);
 		PropertyNode->SetAttribute("Value", TCHAR_TO_ANSI(*StringValue));
-		UE_LOG(LogSimpleXML, Warning, TEXT("XML Key [%s] Value[%s]")
-			, *VariName, *StringValue);
+		
 	}
 	return true;
 }
