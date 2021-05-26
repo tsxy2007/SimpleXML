@@ -319,6 +319,7 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 	{
 		FString VarName = Property->GetName();
+		FString ValueVarName = Property->GetName() + "_Value";
 		int32 MapSize = XmlNode->ToElement()->IntAttribute("Size");
 		// make the output array size match
 		FScriptMapHelper Helper(MapProperty, OutValue);
@@ -328,11 +329,12 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 		const tinyxml2::XMLNode* TmpNode = XmlNode->FirstChildElement(TCHAR_TO_UTF8(*VarName));
 		for (int32 i = 0; TmpNode; ++i, TmpNode = TmpNode->NextSibling())
 		{
+			const tinyxml2::XMLNode* ValeNode = TmpNode->FirstChildElement(TCHAR_TO_UTF8(*ValueVarName));
 			int32 NewIndex = Helper.AddDefaultValue_Invalid_NeedsRehash();
 			FString ImportText(TmpNode->ToElement()->Attribute("Key"));
 			const TCHAR* ImportTextPtr = *ImportText;
 			MapProperty->KeyProp->ImportText(ImportTextPtr, Helper.GetKeyPtr(NewIndex), PPF_None, nullptr);
-			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, MapProperty->ValueProp, Helper.GetValuePtr(NewIndex), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			if (!FXmlObjectConverter::XmlNodeToUProperty(ValeNode, MapProperty->ValueProp, Helper.GetValuePtr(NewIndex), CheckFlags & (~CPF_ParmFlags), SkipFlags))
 			{
 				UE_LOG(LogSimpleXML, Error, TEXT("XMLNodeToUProperty - Unable to deserialize array element [%d] for property %s"), i, *Property->GetNameCPP());
 				return false;
