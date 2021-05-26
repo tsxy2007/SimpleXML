@@ -3,12 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "tinyxml2.h"
 
 class FXmlNode;
-namespace tinyxml2
-{
-	class XMLNode;
-};
 /**
  * 
  */
@@ -22,4 +19,27 @@ public:
 
 public:
 	// XML -> Struct
+	template<typename OutStructType>
+	static bool JsonObjectStringToUStruct(const FString& XmlString, OutStructType* OutStruct, int64 CheckFlags, int64 SkipFlags);
+
+	template<typename OutStructType>
+	static bool XmlObjectToUStruct(const tinyxml2::XMLNode* JsonObject, OutStructType* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0)
+	{
+		return XmlObjectToUStruct(JsonObject, OutStructType::StaticStruct(), OutStruct, CheckFlags, SkipFlags);
+	}
+
+	static bool XmlObjectToUStruct(const tinyxml2::XMLNode* JsonObject,const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0);
+
+	static bool XmlObjectStringToUStruct(const FString& JsonString, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0);
+
+	static bool XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, FProperty* Property, void* OutValue, int64 CheckFlags, int64 SkipFlags);
+
 };
+
+template<typename OutStructType>
+bool FXmlObjectConverter::JsonObjectStringToUStruct(const FString& XmlString, OutStructType* OutStruct, int64 CheckFlags, int64 SkipFlags)
+{
+	tinyxml2::XMLDocument Doc;
+	Doc.Parse(XmlString);
+	return true;
+}

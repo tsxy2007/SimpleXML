@@ -2,7 +2,6 @@
 
 
 #include "XmlObjectConverter.h"
-#include "tinyxml2.h"
 #include "SimpleXML.h"
 
 bool FXmlObjectConverter::UStructToXMLString(const UStruct* StructDefinition, const void* Struct, FString& OutJsonString, int64 CheckFlags, int64 SkipFlags)
@@ -95,8 +94,9 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 		FScriptArrayHelper Helper(ArrayProperty, Value);
 		
 		FString Tag = VariName + TEXT("_es");
-		tinyxml2::XMLNode* ArrayXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
+		tinyxml2::XMLNode* ArrayXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*Tag));
 		RootNode->InsertEndChild(ArrayXMLNode);
+		ArrayXMLNode->ToElement()->SetAttribute("Size", Helper.Num());
 		for (int32 i = 0, n = Helper.Num(); i < n; ++i)
 		{
 			FXmlObjectConverter::UPropertyToXMLNode(ArrayProperty->Inner, Helper.GetRawPtr(i), ArrayXMLNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
@@ -106,9 +106,10 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 	else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
 	{
 		FString Tag = VariName + TEXT("_set");
-		tinyxml2::XMLNode* ArrayXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
+		tinyxml2::XMLNode* ArrayXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*Tag));
 		RootNode->InsertEndChild(ArrayXMLNode);
 		FScriptSetHelper Helper(SetProperty, Value);
+		ArrayXMLNode->ToElement()->SetAttribute("Size", Helper.Num());
 		for (int32 i = 0, n = Helper.Num(); n; ++i)
 		{
 			if (Helper.IsValidIndex(i))
@@ -122,20 +123,23 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 	{
 		FString Tag = VariName + TEXT("_map");
-		tinyxml2::XMLNode* MapXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*Tag));
+		tinyxml2::XMLNode* MapXMLNode = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*Tag));
 		RootNode->InsertEndChild(MapXMLNode);
 
 		FScriptMapHelper Helper(MapProperty, Value);
+
+		MapXMLNode->ToElement()->SetAttribute("Size", Helper.Num());
+
 		for (int32 i = 0, n = Helper.Num(); n; ++i)
 		{
 			if (Helper.IsValidIndex(i))
 			{
 				FString DataTag = VariName + TEXT("_mapData");
-				tinyxml2::XMLElement* MapXMLItemNode = MapXMLNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+				tinyxml2::XMLElement* MapXMLItemNode = MapXMLNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*VariName));
 				MapXMLNode->InsertEndChild(MapXMLItemNode);
 				FString KeyString;
 				MapProperty->KeyProp->ExportTextItem(KeyString, Helper.GetKeyPtr(i), nullptr, nullptr, 0);
-				MapXMLItemNode->SetAttribute("Key",TCHAR_TO_ANSI(*KeyString));
+				MapXMLItemNode->SetAttribute("Key",TCHAR_TO_UTF8(*KeyString));
 				FXmlObjectConverter::UPropertyToXMLNode(MapProperty->ValueProp, Helper.GetValuePtr(i), MapXMLItemNode, CheckFlags & (~CPF_ParmFlags), SkipFlags);
 				--n;
 			}
@@ -146,7 +150,7 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 	{
 		UScriptStruct::ICppStructOps* TheCppStructOps = StructProperty->Struct->GetCppStructOps();
 		FString Tag = VariName;
-		tinyxml2::XMLNode* StructElement = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+		tinyxml2::XMLNode* StructElement = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*VariName));
 		RootNode->InsertEndChild(StructElement);
 		FString DataStringi;
 		Property->ExportTextItem(DataStringi, Value, nullptr, nullptr, 0);
@@ -159,7 +163,7 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 		UObject* Object = ObjectProperty->GetObjectPropertyValue(Value);
 		if (Object && (ObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance) /*|| (OuterProperty && OuterProperty->HasAnyPropertyFlags(CPF_PersistentInstance))*/))
 		{
-			tinyxml2::XMLNode* ClassElement = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+			tinyxml2::XMLNode* ClassElement = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*VariName));
 			RootNode->InsertEndChild(ClassElement);
 			FXmlObjectConverter::UStructToXML(ObjectProperty->GetObjectPropertyValue(Value)->GetClass(), Object, ClassElement, CheckFlags, SkipFlags);
 			bIsContainer = true;
@@ -177,10 +181,306 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 	if (bIsContainer == false)
 	{
 		//RootNode->AppendChildNode(VariName, StringValue);
-		tinyxml2::XMLElement* PropertyNode = RootNode->GetDocument()->NewElement(TCHAR_TO_ANSI(*VariName));
+		tinyxml2::XMLElement* PropertyNode = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*VariName));
 		RootNode->InsertEndChild(PropertyNode);
-		PropertyNode->SetAttribute("Value", TCHAR_TO_ANSI(*StringValue));
+		char* C_Str = TCHAR_TO_UTF8(*StringValue);
+		PropertyNode->SetAttribute("Value", C_Str);
 		
 	}
+	return true;
+}
+
+bool FXmlObjectConverter::XmlObjectToUStruct(const tinyxml2::XMLNode* XMLRoot, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags /*= 0*/, int64 SkipFlags /*= 0*/)
+{
+	for (TFieldIterator<FProperty> PropIt(StructDefinition); PropIt; ++PropIt)
+	{
+		FProperty* Property = *PropIt;
+		if (CheckFlags != 0 && !Property->HasAnyPropertyFlags(CheckFlags))
+		{
+			continue;
+		}
+		if (Property->HasAnyPropertyFlags(SkipFlags))
+		{
+			continue;
+		}
+		FString VarName = Property->GetName();
+		if (Property->IsA<FArrayProperty>())
+		{
+			VarName += TEXT("_es");
+		}
+		else if (Property->IsA<FSetProperty>())
+		{
+			VarName += TEXT("_set");
+		}
+		else if (Property->IsA<FMapProperty>())
+		{
+			VarName += TEXT("_map");
+		}
+		const tinyxml2::XMLElement* ChildXmlNode = XMLRoot->FirstChildElement(TCHAR_TO_UTF8(*VarName));
+		void* Value = Property->ContainerPtrToValuePtr<uint8>(OutStruct);
+		if (!FXmlObjectConverter::XmlNodeToUProperty(ChildXmlNode, Property, Value, CheckFlags, SkipFlags))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool FXmlObjectConverter::XmlObjectStringToUStruct(const FString& XmlString, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags /*= 0*/, int64 SkipFlags /*= 0*/)
+{
+	tinyxml2::XMLDocument Doc;
+	Doc.Parse(TCHAR_TO_UTF8(*XmlString),XmlString.Len());
+	if (Doc.Error())
+	{
+		return false;
+	}
+	if (!FXmlObjectConverter::XmlObjectToUStruct(Doc.RootElement(),StructDefinition,OutStruct,CheckFlags,SkipFlags))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, FProperty* Property, void* OutValue, int64 CheckFlags, int64 SkipFlags)
+{
+	if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		const UEnum* Enum = EnumProperty->GetEnum();
+		check(Enum);
+		FString StrValue(XmlNode->ToElement()->Attribute("Value"));
+		int64 IntValue = Enum->GetValueByName(FName(*StrValue));
+		if (IntValue == INDEX_NONE)
+		{
+			UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import enum %s from string value %s for property %s"), *Enum->CppType, *StrValue, *Property->GetNameCPP());
+			return false;
+		}
+		EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(OutValue, IntValue);
+	}
+	else if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+	{
+		bool Result = (bool)XmlNode->ToElement()->IntAttribute("Value");
+		BoolProperty->SetPropertyValue(OutValue, Result);
+	}
+	else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property))
+	{
+		if (NumericProperty->IsEnum())
+		{
+			// see if we were passed a string for the enum
+			const UEnum* Enum = NumericProperty->GetIntPropertyEnum();
+			check(Enum); // should be assured by IsEnum()
+			FString StrValue(XmlNode->ToElement()->Attribute("Value"));
+			int64 IntValue = Enum->GetValueByName(FName(*StrValue));
+			if (IntValue == INDEX_NONE)
+			{
+				UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import enum %s from string value %s for property %s"), *Enum->CppType, *StrValue, *Property->GetNameCPP());
+				return false;
+			}
+			NumericProperty->SetIntPropertyValue(OutValue, IntValue);
+		}
+		else if (NumericProperty->IsFloatingPoint())
+		{
+			// AsNumber will log an error for completely inappropriate types (then give us a default)
+			NumericProperty->SetFloatingPointPropertyValue(OutValue, XmlNode->ToElement()->FloatAttribute("Value"));
+		}
+		else if (NumericProperty->IsInteger())
+		{
+			NumericProperty->SetIntPropertyValue(OutValue, (int64)XmlNode->ToElement()->FloatAttribute("Value"));
+		}
+		else
+		{
+			UE_LOG(LogSimpleXML, Error, TEXT("JsonValueToUProperty - Unable to set numeric property type %s for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
+			return false;
+		}
+	}
+	else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
+	{
+		// AsString will log an error for completely inappropriate types (then give us a default)
+		StringProperty->SetPropertyValue(OutValue, XmlNode->ToElement()->Attribute("Value"));
+	}
+	else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+	{
+		FString VarName = Property->GetName();
+		int32 ArrLen = XmlNode->ToElement()->IntAttribute("Size");
+		// make the output array size match
+		FScriptArrayHelper Helper(ArrayProperty, OutValue);
+		Helper.Resize(ArrLen);
+
+		// set the property values
+		const tinyxml2::XMLNode* TmpNode = XmlNode->FirstChildElement(TCHAR_TO_UTF8(*VarName));
+		for (int32 i = 0; TmpNode; ++i, TmpNode = TmpNode->NextSibling())
+		{
+			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, ArrayProperty->Inner, Helper.GetRawPtr(i), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			{
+				UE_LOG(LogSimpleXML, Error, TEXT("XMLNodeToUProperty - Unable to deserialize array element [%d] for property %s"), i, *Property->GetNameCPP());
+				return false;
+			}
+		}
+	}
+	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+	{
+		FString VarName = Property->GetName();
+		int32 MapSize = XmlNode->ToElement()->IntAttribute("Size");
+		// make the output array size match
+		FScriptMapHelper Helper(MapProperty, OutValue);
+		Helper.EmptyValues(MapSize);
+
+		// set the property values
+		const tinyxml2::XMLNode* TmpNode = XmlNode->FirstChildElement(TCHAR_TO_UTF8(*VarName));
+		for (int32 i = 0; TmpNode; ++i, TmpNode = TmpNode->NextSibling())
+		{
+			int32 NewIndex = Helper.AddDefaultValue_Invalid_NeedsRehash();
+			FString ImportText(TmpNode->ToElement()->Attribute("Key"));
+			const TCHAR* ImportTextPtr = *ImportText;
+			MapProperty->KeyProp->ImportText(ImportTextPtr, Helper.GetKeyPtr(NewIndex), PPF_None, nullptr);
+			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, MapProperty->ValueProp, Helper.GetValuePtr(NewIndex), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			{
+				UE_LOG(LogSimpleXML, Error, TEXT("XMLNodeToUProperty - Unable to deserialize array element [%d] for property %s"), i, *Property->GetNameCPP());
+				return false;
+			}
+		}
+		Helper.Rehash();
+		
+	}
+	else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+	{
+		FString VarName = Property->GetName();
+		int32 ArrLen = XmlNode->ToElement()->IntAttribute("Size");
+		// make the output array size match
+		FScriptSetHelper Helper(SetProperty, OutValue);
+
+		// set the property values
+		const tinyxml2::XMLNode* TmpNode = XmlNode->FirstChildElement(TCHAR_TO_UTF8(*VarName));
+		for (int32 i = 0; TmpNode; ++i, TmpNode = TmpNode->NextSibling())
+		{
+			int32 NewIndex = Helper.AddDefaultValue_Invalid_NeedsRehash();
+			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, SetProperty->ElementProp, Helper.GetElementPtr(NewIndex), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			{
+				UE_LOG(LogJson, Error, TEXT("XmlNodeToUProperty - Unable to deserialize set element [%d] for property %s"), i, *Property->GetNameCPP());
+				return false;
+			}
+		}
+		Helper.Rehash();
+	}
+	else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+	{
+		TextProperty->SetPropertyValue(OutValue, FText::FromString(FString(XmlNode->ToElement()->Attribute("Value"))));
+	}
+	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		static const FName NAME_DateTime(TEXT("DateTime"));
+		static const FName NAME_Color(TEXT("Color"));
+		static const FName NAME_LinearColor(TEXT("LinearColor"));
+	
+		if (StructProperty->Struct->GetFName() == NAME_DateTime)
+		{
+			FString DateString(XmlNode->ToElement()->Attribute("Value"));
+			FDateTime& DateTimeOut = *(FDateTime*)OutValue;
+			if (DateString == TEXT("min"))
+			{
+				// min representable value for our date struct. Actual date may vary by platform (this is used for sorting)
+				DateTimeOut = FDateTime::MinValue();
+			}
+			else if (DateString == TEXT("max"))
+			{
+				// max representable value for our date struct. Actual date may vary by platform (this is used for sorting)
+				DateTimeOut = FDateTime::MaxValue();
+			}
+			else if (DateString == TEXT("now"))
+			{
+				// this value's not really meaningful from json serialization (since we don't know timezone) but handle it anyway since we're handling the other keywords
+				DateTimeOut = FDateTime::UtcNow();
+			}
+			else if (FDateTime::ParseIso8601(*DateString, DateTimeOut))
+			{
+				// ok
+			}
+			else if (FDateTime::Parse(DateString, DateTimeOut))
+			{
+				// ok
+			}
+			else
+			{
+				UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable to import FDateTime for property %s"), *Property->GetNameCPP());
+				return false;
+			}
+		}
+		else if (StructProperty->Struct->GetCppStructOps() && StructProperty->Struct->GetCppStructOps()->HasImportTextItem())
+		{
+			UScriptStruct::ICppStructOps* TheCppStructOps = StructProperty->Struct->GetCppStructOps();
+
+			FString ImportTextString(XmlNode->ToElement()->Attribute("Value"));
+			const TCHAR* ImportTextPtr = *ImportTextString;
+			if (!TheCppStructOps->ImportTextItem(ImportTextPtr, OutValue, PPF_None, nullptr, (FOutputDevice*)GWarn))
+			{
+				// Fall back to trying the tagged property approach if custom ImportTextItem couldn't get it done
+				Property->ImportText(ImportTextPtr, OutValue, PPF_None, nullptr);
+			}
+		}
+		else
+		{
+			if (!XmlObjectToUStruct(XmlNode, StructProperty->Struct, OutValue, CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			{
+				UE_LOG(LogSimpleXML, Error, TEXT("JsonValueToUProperty - FJsonObjectConverter::JsonObjectToUStruct failed for property %s"), *Property->GetNameCPP());
+				return false;
+			}
+		}
+	}
+	else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+	{
+		//if (JsonValue->Type == EJson::Object)
+		//{
+		//	UObject* Outer = GetTransientPackage();
+		//	if (ContainerStruct->IsChildOf(UObject::StaticClass()))
+		//	{
+		//		Outer = (UObject*)Container;
+		//	}
+
+		//	TSharedPtr<FJsonObject> Obj = JsonValue->AsObject();
+		//	UClass* PropertyClass = ObjectProperty->PropertyClass;
+
+		//	// If a specific subclass was stored in the Json, use that instead of the PropertyClass
+		//	FString ClassString = Obj->GetStringField(ObjectClassNameKey);
+		//	Obj->RemoveField(ObjectClassNameKey);
+		//	if (!ClassString.IsEmpty())
+		//	{
+		//		UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassString);
+		//		if (FoundClass)
+		//		{
+		//			PropertyClass = FoundClass;
+		//		}
+		//	}
+
+		//	UObject* createdObj = StaticAllocateObject(PropertyClass, Outer, NAME_None, EObjectFlags::RF_NoFlags, EInternalObjectFlags::None, false);
+		//	(*PropertyClass->ClassConstructor)(FObjectInitializer(createdObj, PropertyClass->ClassDefaultObject, false, false));
+
+		//	ObjectProperty->SetObjectPropertyValue(OutValue, createdObj);
+
+		//	check(Obj.IsValid()); // should not fail if Type == EJson::Object
+		//	if (!JsonAttributesToUStructWithContainer(Obj->Values, PropertyClass, createdObj, PropertyClass, createdObj, CheckFlags & (~CPF_ParmFlags), SkipFlags))
+		//	{
+		//		UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - FJsonObjectConverter::JsonObjectToUStruct failed for property %s"), *Property->GetNameCPP());
+		//		return false;
+		//	}
+		//}
+		//else if (JsonValue->Type == EJson::String)
+		//{
+		//	// Default to expect a string for everything else
+		//	if (Property->ImportText(*JsonValue->AsString(), OutValue, 0, NULL) == NULL)
+		//	{
+		//		UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
+		//		return false;
+		//	}
+		//}
+	}
+	else
+	{
+		//// Default to expect a string for everything else
+		//if (Property->ImportText(*JsonValue->AsString(), OutValue, 0, NULL) == NULL)
+		//{
+		//	UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
+		//	return false;
+		//}
+	}
+
 	return true;
 }

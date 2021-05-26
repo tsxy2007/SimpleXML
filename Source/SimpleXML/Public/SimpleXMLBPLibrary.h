@@ -59,7 +59,7 @@ class USimpleXMLBPLibrary : public UBlueprintFunctionLibrary
 	DECLARE_FUNCTION(execUStructToJsonObjectString);
 
 	UFUNCTION(BlueprintCallable, CustomThunk, meta = (DisplayName = "JSON String To Struct", CustomStructureParam = "StructReference"), Category = "File|Json")	
-	static void UJsonStringToStruct(const FString& JSONString, int32 StructReference);
+	static bool UJsonStringToStruct(const FString& JSONString, int32 StructReference);
 	DECLARE_FUNCTION(execUJsonStringToStruct);
 
 	static bool JsonObjectStringToUStruct(const FString& JsonString, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0);
@@ -69,7 +69,7 @@ class USimpleXMLBPLibrary : public UBlueprintFunctionLibrary
 	static void UStructToXMLObjectString(const int32& StructReference, FString& XMLString);
 	DECLARE_FUNCTION(execUStructToXMLObjectString);
 
-	UFUNCTION(BlueprintCallable, CustomThunk, meta = (DisplayName = "XML String To Struct", CustomStructureParam = "StructReference"), Category = "File|XML")
-	static void UXmlStringToStruct(const FString& XmlString, int32 StructReference);
+	UFUNCTION(BlueprintPure, CustomThunk, meta = (DisplayName = "XML String To Struct", CustomStructureParam = "StructReference"), Category = "File|XML")
+	static bool UXmlStringToStruct(const FString& XmlString, int32 StructReference);
 	DECLARE_FUNCTION(execUXmlStringToStruct);
 };

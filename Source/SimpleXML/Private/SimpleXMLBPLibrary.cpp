@@ -55,7 +55,8 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUJsonStringToStruct)
 	void* StructPtr = Stack.MostRecentPropertyAddress;
 	P_FINISH;
 	P_NATIVE_BEGIN; 
-	USimpleXMLBPLibrary::JsonObjectStringToUStruct(JSONString, StructProperty->Struct, StructPtr, 0, 0);
+	bool success = USimpleXMLBPLibrary::JsonObjectStringToUStruct(JSONString, StructProperty->Struct, StructPtr, 0, 0);
+	*(bool*)RESULT_PARAM = success;
 	P_NATIVE_END;
 }
 
@@ -83,6 +84,7 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUXmlStringToStruct)
 	void* StructPtr = Stack.MostRecentPropertyAddress;
 	P_FINISH;
 	P_NATIVE_BEGIN;
-	// TODO;
+	bool success = FXmlObjectConverter::XmlObjectStringToUStruct(JSONString, StructProperty->Struct, StructPtr, 0, 0);
+	*(bool*)RESULT_PARAM = success;
 	P_NATIVE_END;
 }
