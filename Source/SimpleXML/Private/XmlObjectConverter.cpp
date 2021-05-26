@@ -218,7 +218,7 @@ bool FXmlObjectConverter::XmlObjectToUStruct(const tinyxml2::XMLNode* XMLRoot, c
 		}
 		const tinyxml2::XMLElement* ChildXmlNode = XMLRoot->FirstChildElement(TCHAR_TO_UTF8(*VarName));
 		void* Value = Property->ContainerPtrToValuePtr<uint8>(OutStruct);
-		if (!FXmlObjectConverter::XmlNodeToUProperty(ChildXmlNode, Property, Value, CheckFlags, SkipFlags))
+		if (!FXmlObjectConverter::XmlNodeToUProperty(ChildXmlNode, Property, Value,StructDefinition,OutStruct, CheckFlags, SkipFlags))
 		{
 			return false;
 		}
@@ -241,7 +241,7 @@ bool FXmlObjectConverter::XmlObjectStringToUStruct(const FString& XmlString, con
 	return true;
 }
 
-bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, FProperty* Property, void* OutValue, int64 CheckFlags, int64 SkipFlags)
+bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, FProperty* Property, void* OutValue, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags, int64 SkipFlags)
 {
 	if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
 	{
@@ -309,7 +309,7 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 		const tinyxml2::XMLNode* TmpNode = XmlNode->FirstChildElement(TCHAR_TO_UTF8(*VarName));
 		for (int32 i = 0; TmpNode; ++i, TmpNode = TmpNode->NextSibling())
 		{
-			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, ArrayProperty->Inner, Helper.GetRawPtr(i), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, ArrayProperty->Inner, Helper.GetRawPtr(i),StructDefinition,OutStruct, CheckFlags & (~CPF_ParmFlags), SkipFlags))
 			{
 				UE_LOG(LogSimpleXML, Error, TEXT("XMLNodeToUProperty - Unable to deserialize array element [%d] for property %s"), i, *Property->GetNameCPP());
 				return false;
@@ -334,7 +334,7 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 			FString ImportText(TmpNode->ToElement()->Attribute("Key"));
 			const TCHAR* ImportTextPtr = *ImportText;
 			MapProperty->KeyProp->ImportText(ImportTextPtr, Helper.GetKeyPtr(NewIndex), PPF_None, nullptr);
-			if (!FXmlObjectConverter::XmlNodeToUProperty(ValeNode, MapProperty->ValueProp, Helper.GetValuePtr(NewIndex), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			if (!FXmlObjectConverter::XmlNodeToUProperty(ValeNode, MapProperty->ValueProp, Helper.GetValuePtr(NewIndex), StructDefinition, OutStruct, CheckFlags & (~CPF_ParmFlags), SkipFlags))
 			{
 				UE_LOG(LogSimpleXML, Error, TEXT("XMLNodeToUProperty - Unable to deserialize array element [%d] for property %s"), i, *Property->GetNameCPP());
 				return false;
@@ -355,7 +355,7 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 		for (int32 i = 0; TmpNode; ++i, TmpNode = TmpNode->NextSibling())
 		{
 			int32 NewIndex = Helper.AddDefaultValue_Invalid_NeedsRehash();
-			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, SetProperty->ElementProp, Helper.GetElementPtr(NewIndex), CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			if (!FXmlObjectConverter::XmlNodeToUProperty(TmpNode, SetProperty->ElementProp, Helper.GetElementPtr(NewIndex), StructDefinition, OutStruct, CheckFlags & (~CPF_ParmFlags), SkipFlags))
 			{
 				UE_LOG(LogJson, Error, TEXT("XmlNodeToUProperty - Unable to deserialize set element [%d] for property %s"), i, *Property->GetNameCPP());
 				return false;
@@ -426,54 +426,58 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 				return false;
 			}
 		}
-	}
+	} 
 	else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 	{
-		//if (JsonValue->Type == EJson::Object)
-		//{
-		//	UObject* Outer = GetTransientPackage();
-		//	if (ContainerStruct->IsChildOf(UObject::StaticClass()))
-		//	{
-		//		Outer = (UObject*)Container;
-		//	}
+		FString ImportTextString(XmlNode->ToElement()->Attribute("Value"));
+		const TCHAR* ImportTextPtr = *ImportTextString;
+		if (Property->ImportText(ImportTextPtr, OutValue, 0, NULL) == NULL)
+		{
+			UE_LOG(LogSimpleXML, Error, TEXT("XmlNodeToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
+			return false;
+		}
+		/*UObject* Outer = GetTransientPackage();
+		if (StructDefinition->IsChildOf(UObject::StaticClass()))
+		{
+			Outer = (UObject*)OutStruct;
+		}*/
 
-		//	TSharedPtr<FJsonObject> Obj = JsonValue->AsObject();
-		//	UClass* PropertyClass = ObjectProperty->PropertyClass;
+			////TSharedPtr<FJsonObject> Obj = JsonValue->AsObject();
+			//UClass* PropertyClass = ObjectProperty->PropertyClass;
 
-		//	// If a specific subclass was stored in the Json, use that instead of the PropertyClass
-		//	FString ClassString = Obj->GetStringField(ObjectClassNameKey);
-		//	Obj->RemoveField(ObjectClassNameKey);
-		//	if (!ClassString.IsEmpty())
-		//	{
-		//		UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassString);
-		//		if (FoundClass)
-		//		{
-		//			PropertyClass = FoundClass;
-		//		}
-		//	}
+			//// If a specific subclass was stored in the Json, use that instead of the PropertyClass
+			//FString ClassString = Obj->GetStringField(ObjectClassNameKey);
+			//Obj->RemoveField(ObjectClassNameKey);
+			//if (!ClassString.IsEmpty())
+			//{
+			//	UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassString);
+			//	if (FoundClass)
+			//	{
+			//		PropertyClass = FoundClass;
+			//	}
+			//}
 
-		//	UObject* createdObj = StaticAllocateObject(PropertyClass, Outer, NAME_None, EObjectFlags::RF_NoFlags, EInternalObjectFlags::None, false);
-		//	(*PropertyClass->ClassConstructor)(FObjectInitializer(createdObj, PropertyClass->ClassDefaultObject, false, false));
+			//UObject* createdObj = StaticAllocateObject(PropertyClass, Outer, NAME_None, EObjectFlags::RF_NoFlags, EInternalObjectFlags::None, false);
+			//(*PropertyClass->ClassConstructor)(FObjectInitializer(createdObj, PropertyClass->ClassDefaultObject, false, false));
 
-		//	ObjectProperty->SetObjectPropertyValue(OutValue, createdObj);
+			//ObjectProperty->SetObjectPropertyValue(OutValue, createdObj);
 
-		//	check(Obj.IsValid()); // should not fail if Type == EJson::Object
-		//	if (!JsonAttributesToUStructWithContainer(Obj->Values, PropertyClass, createdObj, PropertyClass, createdObj, CheckFlags & (~CPF_ParmFlags), SkipFlags))
-		//	{
-		//		UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - FJsonObjectConverter::JsonObjectToUStruct failed for property %s"), *Property->GetNameCPP());
-		//		return false;
-		//	}
-		//}
-		//else if (JsonValue->Type == EJson::String)
-		//{
-		//	// Default to expect a string for everything else
-		//	if (Property->ImportText(*JsonValue->AsString(), OutValue, 0, NULL) == NULL)
-		//	{
-		//		UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
-		//		return false;
-		//	}
-		//}
-	}
+			//check(Obj.IsValid()); // should not fail if Type == EJson::Object
+			//if (!XmlNodeToUProperty(Obj->Values, PropertyClass, createdObj, PropertyClass, createdObj, StructDefinition, OutStruct, CheckFlags & (~CPF_ParmFlags), SkipFlags))
+			//{
+			//	UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - FJsonObjectConverter::JsonObjectToUStruct failed for property %s"), *Property->GetNameCPP());
+			//	return false;
+			//}
+		}
+	//	else if (JsonValue->Type == EJson::String)
+	//	{
+	//		// Default to expect a string for everything else
+	//		if (Property->ImportText(*JsonValue->AsString(), OutValue, 0, NULL) == NULL)
+	//		{
+	//			UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
+	//			return false;
+	//		}
+	//}
 	else
 	{
 		//// Default to expect a string for everything else

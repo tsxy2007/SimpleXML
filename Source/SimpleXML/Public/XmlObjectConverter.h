@@ -32,7 +32,7 @@ public:
 
 	static bool XmlObjectStringToUStruct(const FString& JsonString, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags = 0, int64 SkipFlags = 0);
 
-	static bool XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, FProperty* Property, void* OutValue, int64 CheckFlags, int64 SkipFlags);
+	static bool XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, FProperty* Property, void* OutValue, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags, int64 SkipFlags);
 
 };
 
