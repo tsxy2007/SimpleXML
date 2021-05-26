@@ -13,6 +13,23 @@ USimpleXMLBPLibrary::USimpleXMLBPLibrary(const FObjectInitializer& ObjectInitial
 
 }
 
+bool USimpleXMLBPLibrary::JsonObjectStringToUStruct(const FString& JsonString, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags /*= 0*/, int64 SkipFlags /*= 0*/)
+{
+	TSharedPtr<FJsonObject> JsonObject;
+	TSharedRef<TJsonReader<> > JsonReader = TJsonReaderFactory<>::Create(JsonString);
+	if (!FJsonSerializer::Deserialize(JsonReader, JsonObject) || !JsonObject.IsValid())
+	{
+		UE_LOG(LogJson, Warning, TEXT("JsonObjectStringToUStruct - Unable to parse json=[%s]"), *JsonString);
+		return false;
+	}
+	if (!FJsonObjectConverter::JsonObjectToUStruct(JsonObject.ToSharedRef(), StructDefinition, OutStruct, CheckFlags, SkipFlags))
+	{
+		UE_LOG(LogJson, Warning, TEXT("JsonObjectStringToUStruct - Unable to deserialize. json=[%s]"), *JsonString);
+		return false;
+	}
+	return true;
+}
+
 DEFINE_FUNCTION(USimpleXMLBPLibrary::execUStructToJsonObjectString)
 {
 	Stack.Step(Stack.Object, NULL);
@@ -24,8 +41,21 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUStructToJsonObjectString)
 	P_FINISH;
 
 	P_NATIVE_BEGIN;
-
 	FJsonObjectConverter::UStructToJsonObjectString(StructProperty->Struct, StructPtr, JSONString, 0, 0);
+	P_NATIVE_END;
+}
+
+DEFINE_FUNCTION(USimpleXMLBPLibrary::execUJsonStringToStruct)
+{
+	P_GET_PROPERTY(FStrProperty, JSONString);
+
+
+	Stack.Step(Stack.Object, NULL);
+	FStructProperty* StructProperty = CastField<FStructProperty>(Stack.MostRecentProperty);
+	void* StructPtr = Stack.MostRecentPropertyAddress;
+	P_FINISH;
+	P_NATIVE_BEGIN; 
+	USimpleXMLBPLibrary::JsonObjectStringToUStruct(JSONString, StructProperty->Struct, StructPtr, 0, 0);
 	P_NATIVE_END;
 }
 
@@ -40,10 +70,19 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUStructToXMLObjectString)
 	P_FINISH;
 
 	P_NATIVE_BEGIN;
-	FString Results;
-
 	FXmlObjectConverter::UStructToXMLString(LocalProperty->Struct, StructPtr, JSONString, 0, 0);
-	int32 i = 0;
 	P_NATIVE_END;
 	
+}
+
+DEFINE_FUNCTION(USimpleXMLBPLibrary::execUXmlStringToStruct)
+{
+	P_GET_PROPERTY(FStrProperty, JSONString);
+	Stack.Step(Stack.Object, NULL);
+	FStructProperty* StructProperty = CastField<FStructProperty>(Stack.MostRecentProperty);
+	void* StructPtr = Stack.MostRecentPropertyAddress;
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	// TODO;
+	P_NATIVE_END;
 }
