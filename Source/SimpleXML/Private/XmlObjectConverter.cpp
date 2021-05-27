@@ -1,22 +1,44 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// Copyright 2020 - 2021, butterfly, SimpleXML Plugin, All Rights Reserved.
 
 #include "XmlObjectConverter.h"
 #include "SimpleXML.h"
 
+bool FXmlObjectConverter::SaveStructToXMLFile(const UStruct* StructDefinition, const void* Struct, const FString& XmlFile, int64 CheckFlags, int64 SkipFlags)
+{
+	const char* declaration = "xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"";
+	tinyxml2::XMLDocument doc;
+	//doc.GetDocument()->Parse(declaration);
+	tinyxml2::XMLDeclaration* Dec = doc.NewDeclaration(declaration);
+	doc.InsertFirstChild(Dec);
+	tinyxml2::XMLNode* BaseNode = doc.NewElement("Data");
+	doc.InsertEndChild(BaseNode);
+
+	if (!FXmlObjectConverter::UStructToXML(StructDefinition, Struct, BaseNode, CheckFlags, SkipFlags))
+	{
+		return false;
+	}
+	if (doc.SaveFile(TCHAR_TO_ANSI(*XmlFile), true) != tinyxml2::XML_SUCCESS)
+	{
+		return false;
+	}
+	return true;
+}
+
 bool FXmlObjectConverter::UStructToXMLString(const UStruct* StructDefinition, const void* Struct, FString& OutJsonString, int64 CheckFlags, int64 SkipFlags)
 {
-	bool bResult = false;
 	tinyxml2::XMLDocument doc;
 
 	tinyxml2::XMLNode* BaseNode = doc.NewElement("Data");
 	doc.InsertEndChild(BaseNode);
 
-	FXmlObjectConverter::UStructToXML(StructDefinition, Struct, BaseNode,CheckFlags, SkipFlags);
+	if (!FXmlObjectConverter::UStructToXML(StructDefinition, Struct, BaseNode, CheckFlags, SkipFlags))
+	{
+		return false;
+	}
 	tinyxml2::XMLPrinter printer;
 	doc.Print(&printer);//将Print打印到Xmlprint类中 即保存在内存中
 	OutJsonString = FString(printer.CStr());
-	return bResult;
+	return true;
 }
 
 bool FXmlObjectConverter::UStructToXML(const UStruct* StructDefinition, const void* Struct, tinyxml2::XMLNode* RootNode, int64 CheckFlags, int64 SkipFlags)
@@ -149,13 +171,17 @@ bool FXmlObjectConverter::UPropertyToXMLNode(FProperty* Property, const void* Va
 	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 	{
 		UScriptStruct::ICppStructOps* TheCppStructOps = StructProperty->Struct->GetCppStructOps();
-		FString Tag = VariName;
-		tinyxml2::XMLNode* StructElement = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*VariName));
-		RootNode->InsertEndChild(StructElement);
-		FString DataStringi;
-		Property->ExportTextItem(DataStringi, Value, nullptr, nullptr, 0);
-		FXmlObjectConverter::UStructToXML(StructProperty->Struct, Value, StructElement, CheckFlags& (~CPF_ParmFlags), SkipFlags);
-		bIsContainer = true;
+		if (TheCppStructOps && TheCppStructOps->HasExportTextItem())
+		{
+			Property->ExportTextItem(StringValue, Value, nullptr, nullptr, 0);
+		}
+		else
+		{
+			tinyxml2::XMLNode* StructElement = RootNode->GetDocument()->NewElement(TCHAR_TO_UTF8(*VariName));
+			RootNode->InsertEndChild(StructElement);
+			FXmlObjectConverter::UStructToXML(StructProperty->Struct, Value, StructElement, CheckFlags& (~CPF_ParmFlags), SkipFlags);
+			bIsContainer = true;
+		}
 	}
 	else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 	{
@@ -406,6 +432,23 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 				return false;
 			}
 		}
+		/*else if (StructProperty->Struct->GetFName() == NAME_LinearColor)
+		{
+			FLinearColor& ColorOut = *(FLinearColor*)OutValue;
+			FString ColorString(XmlNode->ToElement()->Attribute("Value"));
+
+			FColor IntermediateColor;
+			IntermediateColor = FColor::FromHex(ColorString);
+
+			ColorOut = IntermediateColor;
+		}
+		else if (StructProperty->Struct->GetFName() == NAME_Color)
+		{
+			FColor& ColorOut = *(FColor*)OutValue;
+			FString ColorString(XmlNode->ToElement()->Attribute("Value"));
+
+			ColorOut = FColor::FromHex(ColorString);
+		}*/
 		else if (StructProperty->Struct->GetCppStructOps() && StructProperty->Struct->GetCppStructOps()->HasImportTextItem())
 		{
 			UScriptStruct::ICppStructOps* TheCppStructOps = StructProperty->Struct->GetCppStructOps();
@@ -488,5 +531,20 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 		//}
 	}
 
+	return true;
+}
+
+bool FXmlObjectConverter::XmlFileToUStruct(const FString& XMLFilePath, const UStruct* StructDefinition, void* OutStruct, int64 CheckFlags /*= 0*/, int64 SkipFlags /*= 0*/)
+{
+	tinyxml2::XMLDocument Doc;
+	Doc.LoadFile(TCHAR_TO_ANSI(*XMLFilePath));
+	if (Doc.Error())
+	{
+		return false;
+	}
+	if (!FXmlObjectConverter::XmlObjectToUStruct(Doc.RootElement(), StructDefinition, OutStruct, CheckFlags, SkipFlags))
+	{
+		return false;
+	}
 	return true;
 }

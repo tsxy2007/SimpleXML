@@ -1,3 +1,4 @@
+// Copyright 2020 - 2021, butterfly, SimpleXML Plugin, All Rights Reserved.
 /*
 Original code by Lee Thomason (www.grinninglizard.com)
 
@@ -2390,7 +2391,7 @@ XMLError XMLDocument::SaveFile( const char* filename, bool compact )
         return _errorID;
     }
 
-    FILE* fp = callfopen( filename, "w" );
+    FILE* fp = callfopen( filename, "wb" );
     if ( !fp ) {
         SetError( XML_ERROR_FILE_COULD_NOT_BE_OPENED, 0, "filename=%s", filename );
         return _errorID;

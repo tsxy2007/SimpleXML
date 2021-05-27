@@ -69,7 +69,15 @@ class USimpleXMLBPLibrary : public UBlueprintFunctionLibrary
 	static void UStructToXMLObjectString(const int32& StructReference, FString& XMLString);
 	DECLARE_FUNCTION(execUStructToXMLObjectString);
 
+	UFUNCTION(BlueprintCallable, CustomThunk, meta = (CustomStructureParam = "StructReference", DisplayName = "Save Struct To XML File"), Category = "File|XML")
+	static bool SaveStructToXml(const int32& StructReference, const FString& XmlFilePath);
+	DECLARE_FUNCTION(execSaveStructToXml);
+
 	UFUNCTION(BlueprintPure, CustomThunk, meta = (DisplayName = "XML String To Struct", CustomStructureParam = "StructReference"), Category = "File|XML")
 	static bool UXmlStringToStruct(const FString& XmlString, int32 StructReference);
 	DECLARE_FUNCTION(execUXmlStringToStruct);
+
+	UFUNCTION(BlueprintPure, CustomThunk, meta = (DisplayName = "Load XML File To Struct", CustomStructureParam = "StructReference"), Category = "File|XML")
+	static bool UXmlFileToStruct(const FString& XmlFilePath, int32 StructReference);
+	DECLARE_FUNCTION(execUXmlFileToStruct);
 };

@@ -1,3 +1,4 @@
+// Copyright 2020 - 2021, butterfly, SimpleXML Plugin, All Rights Reserved.
 /*
 Original code by Lee Thomason (www.grinninglizard.com)
 

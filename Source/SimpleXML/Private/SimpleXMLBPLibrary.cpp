@@ -76,6 +76,22 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUStructToXMLObjectString)
 	
 }
 
+DEFINE_FUNCTION(USimpleXMLBPLibrary::execSaveStructToXml)
+{
+	Stack.Step(Stack.Object, NULL);
+	FStructProperty* LocalProperty = CastField<FStructProperty>(Stack.MostRecentProperty);
+	void* StructPtr = Stack.MostRecentPropertyAddress;
+
+	//Get JsonString reference
+	P_GET_PROPERTY_REF(FStrProperty, XmlFilePath);
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+	bool success = FXmlObjectConverter::SaveStructToXMLFile(LocalProperty->Struct, StructPtr, XmlFilePath, 0, 0);
+	*(bool*)RESULT_PARAM = success;
+	P_NATIVE_END;
+}
+
 DEFINE_FUNCTION(USimpleXMLBPLibrary::execUXmlStringToStruct)
 {
 	P_GET_PROPERTY(FStrProperty, JSONString);
@@ -85,6 +101,19 @@ DEFINE_FUNCTION(USimpleXMLBPLibrary::execUXmlStringToStruct)
 	P_FINISH;
 	P_NATIVE_BEGIN;
 	bool success = FXmlObjectConverter::XmlObjectStringToUStruct(JSONString, StructProperty->Struct, StructPtr, 0, 0);
+	*(bool*)RESULT_PARAM = success;
+	P_NATIVE_END;
+}
+
+DEFINE_FUNCTION(USimpleXMLBPLibrary::execUXmlFileToStruct)
+{
+	P_GET_PROPERTY(FStrProperty, XmlFilePath);
+	Stack.Step(Stack.Object, NULL);
+	FStructProperty* StructProperty = CastField<FStructProperty>(Stack.MostRecentProperty);
+	void* StructPtr = Stack.MostRecentPropertyAddress;
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	bool success = FXmlObjectConverter::XmlFileToUStruct(XmlFilePath, StructProperty->Struct, StructPtr, 0, 0);
 	*(bool*)RESULT_PARAM = success;
 	P_NATIVE_END;
 }
