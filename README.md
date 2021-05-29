@@ -1,17 +1,17 @@
 USTRUCT(BlueprintType)
 struct FTestData
 {
-public:
-	GENERATED_USTRUCT_BODY()
+        public:
+        GENERATED_USTRUCT_BODY()
 
-		UPROPERTY(EditAnywhere, Category = TestData)
-		FMatrix Transform;
-
-	UPROPERTY(EditAnywhere, Category = TestData)
-		FColor VertexColor;
+        UPROPERTY(EditAnywhere, Category = TestData)
+        FMatrix Transform;
 
 	UPROPERTY(EditAnywhere, Category = TestData)
-		int32 MaterialIndex;
+	FColor VertexColor;
+
+	UPROPERTY(EditAnywhere, Category = TestData)
+	int32 MaterialIndex;
 
 
 public:
@@ -24,6 +24,7 @@ public:
 };
 
 FTestData Testdata;
+
 FString XMlString;
 1.Struct To XMLString
 FXmlObjectConverter::UStructToXMLString(Testdata,XMlString);
