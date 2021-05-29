@@ -523,12 +523,14 @@ bool FXmlObjectConverter::XmlNodeToUProperty(const tinyxml2::XMLNode* XmlNode, F
 	//}
 	else
 	{
-		//// Default to expect a string for everything else
-		//if (Property->ImportText(*JsonValue->AsString(), OutValue, 0, NULL) == NULL)
-		//{
-		//	UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
-		//	return false;
-		//}
+		FString ImportTextString(XmlNode->ToElement()->Attribute("Value"));
+		const TCHAR* ImportTextPtr = *ImportTextString;
+		// Default to expect a string for everything else
+		if (Property->ImportText(ImportTextPtr, OutValue, 0, NULL) == NULL)
+		{
+			UE_LOG(LogJson, Error, TEXT("JsonValueToUProperty - Unable import property type %s from string value for property %s"), *Property->GetClass()->GetName(), *Property->GetNameCPP());
+			return false;
+		}
 	}
 
 	return true;

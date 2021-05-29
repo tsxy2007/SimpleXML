@@ -54,11 +54,11 @@ class USimpleXMLBPLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
 
-	UFUNCTION(BlueprintPure, CustomThunk, meta = (CustomStructureParam = "StructReference", DisplayName = "Struct To JSON String"), Category = "File|Json")
+	UFUNCTION(BlueprintPure, CustomThunk, meta = (CustomStructureParam = "StructReference", DisplayName = "UStruct To JSON String"), Category = "File|Json")
 	static void UStructToJsonObjectString(const int32& StructReference, FString& JSONString);
 	DECLARE_FUNCTION(execUStructToJsonObjectString);
 
-	UFUNCTION(BlueprintCallable, CustomThunk, meta = (DisplayName = "JSON String To Struct", CustomStructureParam = "StructReference"), Category = "File|Json")	
+	UFUNCTION(BlueprintCallable, CustomThunk, meta = (DisplayName = "JSON String To UStruct", CustomStructureParam = "StructReference"), Category = "File|Json")	
 	static bool UJsonStringToStruct(const FString& JSONString, int32 StructReference);
 	DECLARE_FUNCTION(execUJsonStringToStruct);
 
