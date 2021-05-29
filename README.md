@@ -21,7 +21,9 @@ public:
 		, MaterialIndex(INDEX_NONE)
 	{
 	}
+	
 };
+
 
 FTestData Testdata;
 
