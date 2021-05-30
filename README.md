@@ -24,6 +24,7 @@ public:
 	
 };
 
+
 FTestData Testdata;
 
 FString XMlString;
