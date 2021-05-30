@@ -2,6 +2,7 @@
 
 #include "XmlObjectConverter.h"
 #include "SimpleXML.h"
+#include "UObject/TextProperty.h"
 
 bool FXmlObjectConverter::SaveStructToXMLFile(const UStruct* StructDefinition, const void* Struct, const FString& XmlFile, int64 CheckFlags, int64 SkipFlags)
 {

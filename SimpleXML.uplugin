@@ -7,7 +7,7 @@
 	"Category": "Other",
 	"CreatedBy": "Butterfly",
 	"CreatedByURL": "",
-	"DocsURL": "",
+	"DocsURL": "https://www.youtube.com/watch?v=gt-l3h7mxzQ&t=190s",
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"CanContainContent": true,
@@ -18,7 +18,11 @@
 		{
 			"Name": "SimpleXML",
 			"Type": "Runtime",
-			"LoadingPhase": "PreLoadingScreen"
+			"LoadingPhase": "PreLoadingScreen",
+			"WhitelistPlatforms": [
+				"Win64",
+				"Android"
+			]
 		}
 	]
 }
