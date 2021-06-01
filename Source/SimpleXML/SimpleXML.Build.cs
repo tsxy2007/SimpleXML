@@ -42,6 +42,7 @@ public class SimpleXML : ModuleRules
 				"JsonUtilities",
 				"Json",
 				"XmlParser",
+				"Tinyxml2"
 			}
 			);
 		
