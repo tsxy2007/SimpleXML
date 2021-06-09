@@ -5,33 +5,6 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "SimpleXMLBPLibrary.generated.h"
 
-
-USTRUCT(BlueprintType)
-struct FTestData
-{
-public:
-	GENERATED_USTRUCT_BODY()
-
-		UPROPERTY(EditAnywhere, Category = TestData)
-		FMatrix Transform;
-
-	UPROPERTY(EditAnywhere, Category = TestData)
-		FColor VertexColor;
-
-	UPROPERTY(EditAnywhere, Category = TestData)
-		int32 MaterialIndex;
-
-
-public:
-	FTestData()
-		: Transform(FMatrix::Identity)
-		, VertexColor(FColor::White)
-		, MaterialIndex(INDEX_NONE)
-	{
-	}
-};
-
-
 /* 
 *	Function library class.
 *	Each function in it is expected to be static and represents blueprint node that can be called in any blueprint.
